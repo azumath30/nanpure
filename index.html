@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ナンプレ・スキャナー＆ソルバー</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes scan {
+            0% { top: 0%; }
+            50% { top: 100%; }
+            100% { top: 0%; }
+        }
+        .animate-scan {
+            animation: scan 2.5s linear infinite;
+        }
+        /* 3x3ブロックの境界線を強調するためのカスタムクラス */
+        .bb-3 { border-bottom-width: 3px !important; border-bottom-color: #475569 !important; }
+        .rb-3 { border-right-width: 3px !important; border-right-color: #475569 !important; }
+        .lb-3 { border-left-width: 3px !important; border-left-color: #475569 !important; }
+        .tb-3 { border-top-width: 3px !important; border-top-color: #475569 !important; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans antialiased selection:bg-indigo-500 selection:text-white">
+
+    <!-- ヘッダー -->
+    <header class="bg-slate-800 border-b border-slate-700 py-4 px-6 sticky top-0 z-50 shadow-md">
+        <div class="max-w-4xl mx-auto flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="bg-indigo-600 p-2 rounded-lg text-white shadow-md shadow-indigo-500/20">
+                    <svg class="w-6 height-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">ナンプレ解析君</h1>
+                    <p class="text-xs text-slate-400">Smart Sudoku Scanner & Solver</p>
+                </div>
+            </div>
+            <button id="reset-app-btn" class="hidden text-sm text-slate-400 hover:text-slate-200 flex items-center space-x-1 transition">
+                <svg class="w-4 height-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.213 6h-2.66"></path>
+                </svg>
+                <span>最初から</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- メインコンテンツ -->
+    <main class="flex-grow max-w-4xl w-full mx-auto p-4 sm:p-6 flex flex-col justify-center">
+
+        <!-- STEP 1: 写真撮影・アップロード画面 -->
+        <section id="screen-upload" class="bg-slate-800 rounded-2xl p-6 sm:p-10 border border-slate-700 shadow-xl text-center max-w-md mx-auto w-full transition-all duration-300">
+            <div class="mb-6">
+                <div class="w-20 height-20 bg-indigo-900/50 text-indigo-400 rounded-full flex items-center justify-center mx-auto mb-4 border border-indigo-500/30">
+                    <svg class="w-10 height-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0x"></path>
+                    </svg>
+                </div>
+                <h2 class="text-2xl font-bold mb-2">パズルを撮影</h2>
+                <p class="text-slate-400 text-sm">新聞や雑誌のナンプレを、正面からまっすぐ綺麗に撮影してください。</p>
+            </div>
+
+            <div class="space-y-4">
+                <!-- カメラ起動ボタン (モバイル用) -->
+                <label class="block w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-3.5 px-4 rounded-xl shadow-lg shadow-indigo-600/20 cursor-pointer transition transform active:scale-[0.98] flex items-center justify-center space-x-2">
+                    <svg class="w-5 height-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"></path>
+                    </svg>
+                    <span>カメラで写真を撮る</span>
+                    <input type="file" id="camera-input" accept="image/*" capture="environment" class="hidden">
+                </label>
+
+                <!-- ギャラリーから選択 -->
+                <label class="block w-full bg-slate-700 hover:bg-slate-600 text-slate-200 font-medium py-3 px-4 rounded-xl cursor-pointer transition border border-slate-600 flex items-center justify-center space-x-2">
+                    <svg class="w-5 height-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                    <span>写真ライブラリから選ぶ</span>
+                    <input type="file" id="gallery-input" accept="image/*" class="hidden">
+                </label>
+            </div>
+            
+            <div class="mt-6 pt-6 border-t border-slate-700/50">
+                <button id="skip-to-blank-btn" class="text-xs text-indigo-400 hover:text-indigo-300 underline transition">
+                    写真なしで手動で数字を入力する
+                </button>
+            </div>
+        </section>
+
+
+        <!-- STEP 2: 画像解析アニメーション画面 -->
+        <section id="screen-loading" class="hidden bg-slate-800 rounded-2xl p-6 border border-slate-700 shadow-xl text-center max-w-md mx-auto w-full transition-all duration-300">
+            <h2 class="text-xl font-bold mb-4">画像をスキャン中...</h2>
+            
+            <!-- 写真プレビューとスキャンエフェクト -->
+            <div class="relative w-full aspect-square bg-slate-900 rounded-xl overflow-hidden mb-6 border border-slate-700">
+                <img id="scan-preview" class="w-full h-full object-contain opacity-60" src="" alt="Scan preview">
+                <!-- スキャン線 -->
+                <div class="absolute left-0 w-full height-1 bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_12px_#22d3ee] animate-scan"></div>
+            </div>
+
+            <p class="text-sm text-slate-400 animate-pulse">輪郭を検出してグリッドに変換しています。少々お待ちください...</p>
+        </section>
+
+
+        <!-- STEP 3: グリッド確認・数値修正画面 -->
+        <section id="screen-editor" class="hidden grid grid-cols-1 md:grid-cols-12 gap-6 transition-all duration-300">
+            
+            <!-- 左側: ナンプレ盤面入力 -->
+            <div class="md:col-span-7 bg-slate-800 rounded-2xl p-4 sm:p-6 border border-slate-700 shadow-xl flex flex-col items-center">
+                <div class="w-full flex items-center justify-between mb-4">
+                    <div>
+                        <h2 class="text-lg font-bold">スキャン結果の確認</h2>
+                        <p class="text-xs text-slate-400">画像から読み取った状態です。誤りがあれば修正してください。</p>
+                    </div>
+                </div>
+
+                <!-- 9x9 ナンプレグリッド -->
+                <div id="sudoku-grid" class="w-full max-w-sm aspect-square bg-slate-900 border-2 border-slate-600 grid grid-cols-9 shadow-inner rounded-lg overflow-hidden">
+                    <!-- JavaScriptで81個のマスを生成 -->
+                </div>
+
+                <!-- アクションボタン -->
+                <div class="w-full max-w-sm mt-6 flex space-x-3">
+                    <button id="clear-grid-btn" class="w-1/3 bg-slate-700 hover:bg-slate-600 text-slate-200 py-3 rounded-xl font-medium transition text-sm">
+                        クリア
+                    </button>
+                    <button id="solve-btn" class="w-2/3 bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white py-3 rounded-xl font-bold shadow-lg shadow-indigo-600/20 transition flex items-center justify-center space-x-2">
+                        <svg class="w-5 height-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                        <span>この問題を解く！</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 右側: 操作パネル / 撮影画像プレビュー -->
+            <div class="md:col-span-5 space-y-4 flex flex-col justify-between">
+                <!-- カスタムテンキー -->
+                <div class="bg-slate-800 rounded-2xl p-4 border border-slate-700 shadow-xl">
+                    <h3 class="text-sm font-semibold text-slate-400 mb-3 text-center">数字キー (選択したマスに入力)</h3>
+                    <div class="grid grid-cols-3 gap-2 max-w-xs mx-auto">
+                        <button type="button" class="keypad-btn bg-slate-700 hover:bg-slate-600 text-xl font-bold py-4 rounded-xl transition active:bg-indigo-600" data-value="1">1</button>
+                        <button type="button" class="keypad-btn bg-slate-700 hover:bg-slate-600 text-xl font-bold py-4 rounded-xl transition active:bg-indigo-600" data-value="2">2</button>
+                        <button type="button" class="keypad-btn bg-slate-700 hover:bg-slate-600 text-xl font-bold py-4 rounded-xl transition active:bg-indigo-600" data-value="3">3</button>
+                        <button type="button" class="keypad-btn bg-slate-700 hover:bg-slate-600 text-xl font-bold py-4 rounded-xl transition active:bg-indigo-600" data-value="4">4</button>
+                        <button type="button" class="keypad-btn bg-slate-700 hover:bg-slate-600 text-xl font-bold py-4 rounded-xl transition active:bg-indigo-600" data-value="5">5</button>
+                        <button type="button" class="keypad-btn bg-slate-700 hover:bg-slate-600 text-xl font-bold py-4 rounded-xl transition active:bg-indigo-600" data-value="6">6</button>
+                        <button type="button" class="keypad-btn bg-slate-700 hover:bg-slate-600 text-xl font-bold py-4 rounded-xl transition active:bg-indigo-600" data-value="7">7</button>
+                        <button type="button" class="keypad-btn bg-slate-700 hover:bg-slate-600 text-xl font-bold py-4 rounded-xl transition active:bg-indigo-600" data-value="8">8</button>
+                        <button type="button" class="keypad-btn bg-slate-700 hover:bg-slate-600 text-xl font-bold py-4 rounded-xl transition active:bg-indigo-600" data-value="9">9</button>
+                        <button type="button" class="keypad-btn col-span-3 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 font-medium py-3 rounded-xl transition border border-rose-800/30 flex items-center justify-center space-x-1" data-value="0">
+                            <svg class="w-4 height-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                            </svg>
+                            <span>マスをクリア</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 元写真のミニプレビュー -->
+                <div id="mini-preview-container" class="hidden bg-slate-800 rounded-2xl p-4 border border-slate-700 shadow-xl flex-grow flex flex-col justify-center">
+                    <h3 class="text-xs font-semibold text-slate-400 mb-2">元の写真</h3>
+                    <div class="relative w-full h-40 bg-slate-900 rounded-lg overflow-hidden border border-slate-700">
+                        <img id="editor-mini-preview" class="w-full h-full object-contain" src="" alt="Original reference">
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- STEP 4: 解答出力画面 -->
+        <section id="screen-result" class="hidden bg-slate-800 rounded-2xl p-4 sm:p-6 border border-slate-700 shadow-xl max-w-md mx-auto w-full text-center transition-all duration-300">
+            <div class="mb-4">
+                <div class="w-12 height-12 bg-emerald-900/50 text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-2 border border-emerald-500/30">
+                    <svg class="w-6 height-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                </div>
+                <h2 class="text-2xl font-bold">解答完了！</h2>
+                <p class="text-xs text-slate-400 mt-1">青文字が自動で埋められた答えの数値です</p>
+            </div>
+
+            <!-- 結果表示用固定盤面 -->
+            <div id="result-grid" class="w-full max-w-sm aspect-square bg-slate-900 border-2 border-slate-600 grid grid-cols-9 shadow-inner rounded-lg overflow-hidden mx-auto">
+                <!-- JavaScriptで結果を出力 -->
+            </div>
+
+            <div class="mt-6 flex space-x-3 max-w-sm mx-auto">
+                <button id="back-to-editor-btn" class="w-1/2 bg-slate-700 hover:bg-slate-600 text-slate-200 py-3 rounded-xl transition text-sm font-medium">
+                    数値を修正する
+                </button>
+                <button id="new-scan-btn" class="w-1/2 bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-xl transition text-sm font-bold shadow-lg shadow-indigo-600/20">
+                    別の写真を撮る
+                </button>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- フッター -->
+    <footer class="bg-slate-900 text-center py-4 text-xs text-slate-500 border-t border-slate-800/60 mt-auto">
+        <p>&copy; 2026 ナンプレ解析君 - 高速バックトラッキング解決エンジン搭載</p>
+    </footer>
+
+    <!-- カスタムトースト通知 (alertの代わり) -->
+    <div id="toast" class="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-slate-800 border border-slate-700 text-slate-100 px-5 py-3 rounded-xl shadow-2xl transition-all duration-300 opacity-0 pointer-events-none z-50 flex items-center space-x-2 max-w-sm w-11/12">
+        <span id="toast-icon" class="text-amber-400"></span>
+        <p id="toast-message" class="text-sm font-medium"></p>
+    </div>
+
+    <script>
+        // --- 状態管理 ---
+        let currentScreen = 'upload';
+        let activeCellIndex = null;
+        let initialBoard = Array(9).fill().map(() => Array(9).fill(0));
+        let solvedBoard = Array(9).fill().map(() => Array(9).fill(0));
+
+        // ダミーの画像スキャン成功時にロードされるサンプル盤面（実在する解けるナンプレ）
+        const samplePuzzle = [
+            [5, 3, 0, 0, 7, 0, 0, 0, 0],
+            [6, 0, 0, 1, 9, 5, 0, 0, 0],
+            [0, 9, 8, 0, 0, 0, 0, 6, 0],
+            [8, 0, 0, 0, 6, 0, 0, 0, 3],
+            [4, 0, 0, 8, 0, 3, 0, 0, 1],
+            [7, 0, 0, 0, 2, 0, 0, 0, 6],
+            [0, 6, 0, 0, 0, 0, 2, 8, 0],
+            [0, 0, 0, 4, 1, 9, 0, 0, 5],
+            [0, 0, 0, 0, 8, 0, 0, 7, 9]
+        ];
+
+        // --- DOM 要素 ---
+        const screens = {
+            upload: document.getElementById('screen-upload'),
+            loading: document.getElementById('screen-loading'),
+            editor: document.getElementById('screen-editor'),
+            result: document.getElementById('screen-result')
+        };
+        const cameraInput = document.getElementById('camera-input');
+        const galleryInput = document.getElementById('gallery-input');
+        const scanPreview = document.getElementById('scan-preview');
+        const editorMiniPreview = document.getElementById('editor-mini-preview');
+        const miniPreviewContainer = document.getElementById('mini-preview-container');
+        const sudokuGrid = document.getElementById('sudoku-grid');
+        const resultGrid = document.getElementById('result-grid');
+        const resetAppBtn = document.getElementById('reset-app-btn');
+
+        // --- 画面遷移ロジック ---
+        function changeScreen(screenName) {
+            Object.keys(screens).forEach(key => {
+                if (key === screenName) {
+                    screens[key].classList.remove('hidden');
+                } else {
+                    screens[key].classList.add('hidden');
+                }
+            });
+            currentScreen = screenName;
+            
+            if (screenName === 'upload') {
+                resetAppBtn.classList.add('hidden');
+            } else {
+                resetAppBtn.classList.remove('hidden');
+            }
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // --- カスタムトースト機能 ---
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            const msgEl = document.getElementById('toast-message');
+            const iconEl = document.getElementById('toast-icon');
+            
+            msgEl.textContent = message;
+            
+            if (type === 'error') {
+                iconEl.innerHTML = `<svg class="w-5 height-5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>`;
+            } else {
+                iconEl.innerHTML = `<svg class="w-5 height-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
+            }
+
+            toast.classList.remove('opacity-0', 'pointer-events-none');
+            toast.classList.add('opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                toast.classList.add('opacity-0', 'pointer-events-none');
+            }, 3500);
+        }
+
+        // --- 画像処理シミュレーション ---
+        function handleImageSelection(file) {
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                // スキャン画面に画像をセット
+                scanPreview.src = e.target.result;
+                editorMiniPreview.src = e.target.result;
+                miniPreviewContainer.classList.remove('hidden');
+                
+                // スキャン開始
+                changeScreen('loading');
+                
+                // 2.5秒のスキャン演出後、エディタ画面へ
+                setTimeout(() => {
+                    // 画像から疑似的に数値を読み取った状態で初期化
+                    initialBoard = JSON.parse(JSON.stringify(samplePuzzle));
+                    buildEditorGrid();
+                    changeScreen('editor');
+                    showToast('盤面の読み取りが完了しました！間違いを修正してください。');
+                }, 2500);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        cameraInput.addEventListener('change', (e) => handleImageSelection(e.target.files[0]));
+        galleryInput.addEventListener('change', (e) => handleImageSelection(e.target.files[0]));
+        
+        document.getElementById('skip-to-blank-btn').addEventListener('click', () => {
+            initialBoard = Array(9).fill().map(() => Array(9).fill(0));
+            miniPreviewContainer.classList.add('hidden');
+            buildEditorGrid();
+            changeScreen('editor');
+            showToast('空の盤面を用意しました。数字を入力してください。');
+        });
+
+        // --- エディタグリッド（9x9）の構築 ---
+        function buildEditorGrid() {
+            sudokuGrid.innerHTML = '';
+            for (let i = 0; i < 81; i++) {
+                const row = Math.floor(i / 9);
+                const col = i % 9;
+                const value = initialBoard[row][col];
+
+                const cell = document.createElement('div');
+                cell.className = `aspect-square bg-slate-800 flex items-center justify-center text-xl font-bold border border-slate-700/60 cursor-pointer transition select-none hover:bg-slate-700/50`;
+                
+                // ナンプレの3x3ブロック境界線スタイル適応
+                if (row === 2 || row === 5) cell.classList.add('bb-3');
+                if (col === 2 || col === 5) cell.classList.add('rb-3');
+                if (row === 3 || row === 6) cell.classList.add('tb-3');
+                if (col === 3 || col === 6) cell.classList.add('lb-3');
+
+                cell.dataset.index = i;
+                cell.textContent = value === 0 ? '' : value;
+                
+                if (value !== 0) {
+                    cell.classList.add('text-indigo-300');
+                }
+
+                cell.addEventListener('click', () => selectCell(i));
+                sudokuGrid.appendChild(cell);
+            }
+            activeCellIndex = null;
+        }
+
+        function selectCell(index) {
+            const cells = sudokuGrid.children;
+            // 前の選択を解除
+            if (activeCellIndex !== null && cells[activeCellIndex]) {
+                cells[activeCellIndex].classList.remove('bg-indigo-600/30', 'ring-2', 'ring-indigo-500', 'z-10');
+            }
+
+            activeCellIndex = index;
+            // 新しいセルを選択
+            cells[activeCellIndex].classList.add('bg-indigo-600/30', 'ring-2', 'ring-indigo-500', 'z-10');
+        }
+
+        // テンキー入力イベント
+        document.querySelectorAll('.keypad-btn').forEach(button => {
+            button.addEventListener('click', () => {
+                if (activeCellIndex === null) {
+                    showToast('数字を入れるマスを先にタップしてください。', 'error');
+                    return;
+                }
+
+                const value = parseInt(button.dataset.value);
+                const row = Math.floor(activeCellIndex / 9);
+                const col = activeCellIndex % 9;
+
+                initialBoard[row][col] = value;
+                
+                const cell = sudokuGrid.children[activeCellIndex];
+                if (value === 0) {
+                    cell.textContent = '';
+                    cell.classList.remove('text-indigo-300');
+                } else {
+                    cell.textContent = value;
+                    cell.classList.add('text-indigo-300');
+                }
+            });
+        });
+
+        // 盤面クリア
+        document.getElementById('clear-grid-btn').addEventListener('click', () => {
+            initialBoard = Array(9).fill().map(() => Array(9).fill(0));
+            buildEditorGrid();
+            showToast('盤面をすべてクリアしました。');
+        });
+
+
+        // --- ナンプレ解析コアアルゴリズム (Backtracking) ---
+        function isValid(board, row, col, num) {
+            // 行と列の重複チェック
+            for (let x = 0; x < 9; x++) {
+                if (board[row][x] === num || board[x][col] === num) return false;
+            }
+            // 3x3 ブロックの重複チェック
+            const startRow = row - (row % 3);
+            const startCol = col - (col % 3);
+            for (let i = 0; i < 3; i++) {
+                for (let j = 0; j < 3; j++) {
+                    if (board[i + startRow][j + startCol] === num) return false;
+                }
+            }
+            return true;
+        }
+
+        function solveSudokuLogic(board) {
+            for (let row = 0; row < 9; row++) {
+                for (let col = 0; col < 9; col++) {
+                    if (board[row][col] === 0) {
+                        for (let num = 1; num <= 9; num++) {
+                            if (isValid(board, row, col, num)) {
+                                board[row][col] = num;
+                                if (solveSudokuLogic(board)) return true;
+                                board[row][col] = 0;
+                            }
+                        }
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        // 初期盤面のルール違反チェック
+        function validateInitialBoard(board) {
+            let hasNumbers = false;
+            for (let r = 0; r < 9; r++) {
+                for (let c = 0; c < 9; c++) {
+                    const val = board[r][c];
+                    if (val !== 0) {
+                        hasNumbers = true;
+                        board[r][c] = 0;
+                        if (!isValid(board, r, c, val)) {
+                            board[r][c] = val;
+                            return { valid: false, reason: `横・縦・ブロックのどこかで「${val}」が重複しています。` };
+                        }
+                        board[r][c] = val;
+                    }
+                }
+            }
+            if (!hasNumbers) {
+                return { valid: false, reason: '数字が一つも入力されていません。' };
+            }
+            return { valid: true };
+        }
+
+        // 「解く」ボタンのアクション
+        document.getElementById('solve-btn').addEventListener('click', () => {
+            // 現在の入力の検証
+            const validation = validateInitialBoard(initialBoard);
+            if (!validation.valid) {
+                showToast(`盤面に矛盾があります: ${validation.reason}`, 'error');
+                return;
+            }
+
+            // 盤面をコピーしてソルバーに渡す
+            solvedBoard = JSON.parse(JSON.stringify(initialBoard));
+            
+            // 解決実行
+            const success = solveSudokuLogic(solvedBoard);
+            
+            if (success) {
+                buildResultGrid();
+                changeScreen('result');
+                showToast('パズルを完全に解きました！');
+            } else {
+                showToast('この問題は数学的に解くことができません。数字を見直してください。', 'error');
+            }
+        });
+
+
+        // --- 解答画面の描画 ---
+        function buildResultGrid() {
+            resultGrid.innerHTML = '';
+            for (let i = 0; i < 81; i++) {
+                const row = Math.floor(i / 9);
+                const col = i % 9;
+                const originalVal = initialBoard[row][col];
+                const solvedVal = solvedBoard[row][col];
+
+                const cell = document.createElement('div');
+                cell.className = `aspect-square bg-slate-800 flex items-center justify-center text-xl font-bold border border-slate-700/60 select-none`;
+                
+                if (row === 2 || row === 5) cell.classList.add('bb-3');
+                if (col === 2 || col === 5) cell.classList.add('rb-3');
+                if (row === 3 || row === 6) cell.classList.add('tb-3');
+                if (col === 3 || col === 6) cell.classList.add('lb-3');
+
+                cell.textContent = solvedVal;
+
+                // 最初からあった数字と、新しく解いた数字を色分け
+                if (originalVal !== 0) {
+                    cell.classList.add('text-slate-400', 'bg-slate-800/40');
+                } else {
+                    cell.classList.add('text-cyan-400', 'bg-indigo-950/20');
+                }
+
+                resultGrid.appendChild(cell);
+            }
+        }
+
+        // --- その他のナビゲーションボタン ---
+        document.getElementById('back-to-editor-btn').addEventListener('click', () => {
+            changeScreen('editor');
+        });
+
+        function resetWholeApp() {
+            cameraInput.value = '';
+            galleryInput.value = '';
+            initialBoard = Array(9).fill().map(() => Array(9).fill(0));
+            solvedBoard = Array(9).fill().map(() => Array(9).fill(0));
+            changeScreen('upload');
+        }
+
+        document.getElementById('new-scan-btn').addEventListener('click', resetWholeApp);
+        resetAppBtn.addEventListener('click', resetWholeApp);
+
+    </script>
+</body>
+</html>
